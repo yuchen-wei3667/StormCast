@@ -1,0 +1,14 @@
+name: StormCast
+channels:
+  - anaconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13
+  - numpy
+  - scikit-image
+  - scipy
+  - shapely
+  - rasterio
+  - pyproj
+  - matplotlib
