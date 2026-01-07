@@ -12,6 +12,7 @@ from .config import UNCERTAINTY_PARAMS
 
 def compute_tracking_uncertainty(
     n_samples: int,
+    motion_jitter: float = 0.0,
     sigma_min: float = None,
     sigma_range: float = None,
     alpha: float = None
@@ -42,14 +43,18 @@ def compute_tracking_uncertainty(
         alpha = UNCERTAINTY_PARAMS.alpha_decay
     
     n = max(n_samples, 1)  # Prevent division by zero
-    return sigma_min + sigma_range / (n ** alpha)
+    base_uncertainty = sigma_min + sigma_range / (n ** alpha)
+    
+    # Add jitter-based uncertainty
+    return base_uncertainty + (motion_jitter * UNCERTAINTY_PARAMS.jitter_multiplier)
 
 
 def compute_velocity_covariance(
     sigma_obs: float = None,
     sigma_env: float = None,
     sigma_hist: float = None,
-    n_samples: int = None
+    n_samples: int = None,
+    motion_jitter: float = 0.0
 ) -> Tuple[float, float, float]:
     """
     Compute combined velocity covariance components.
@@ -75,7 +80,7 @@ def compute_velocity_covariance(
         sigma_env = UNCERTAINTY_PARAMS.sigma_env
     if sigma_hist is None:
         if n_samples is not None:
-            sigma_hist = compute_tracking_uncertainty(n_samples)
+            sigma_hist = compute_tracking_uncertainty(n_samples, motion_jitter=motion_jitter)
         else:
             sigma_hist = UNCERTAINTY_PARAMS.sigma_min
     

@@ -115,6 +115,7 @@ class UncertaintyParams:
     alpha_decay: float    # Rate of confidence increase with N
     sigma_obs: float      # Observational centroid jitter (m/s)
     sigma_env: float      # Environmental (RAP) uncertainty (m/s)
+    jitter_multiplier: float # Multiplier for velocity standard deviation
 
 UNCERTAINTY_PARAMS = UncertaintyParams(
     sigma_min=3.0,
@@ -122,6 +123,7 @@ UNCERTAINTY_PARAMS = UncertaintyParams(
     alpha_decay=0.5,
     sigma_obs=5.0,
     sigma_env=4.0,
+    jitter_multiplier=1.5,
 )
 
 # =============================================================================

@@ -95,7 +95,10 @@ def forecast_with_uncertainty(
     
     # Compute velocity uncertainty if not provided
     if sigma_vel is None:
-        sigma_u, sigma_v, _ = compute_velocity_covariance(n_samples=state.track_history)
+        sigma_u, sigma_v, _ = compute_velocity_covariance(
+            n_samples=state.track_history,
+            motion_jitter=state.motion_jitter
+        )
         sigma_vel = (sigma_u, sigma_v)
     
     forecast_points = []
@@ -147,7 +150,7 @@ def forecast_motion_cone(
     
     cones = []
     for fp in points:
-        ellipse = generate_uncertainty_ellipse(
+        ellipse_pts = generate_uncertainty_ellipse(
             fp.sigma_x, 
             fp.sigma_y, 
             confidence=confidence, 
@@ -155,7 +158,7 @@ def forecast_motion_cone(
         )
         
         # Translate ellipse to forecast position
-        ellipse_absolute = [(fp.x + ex, fp.y + ey) for ex, ey in ellipse]
+        ellipse_absolute = [(fp.x + ex, fp.y + ey) for ex, ey in ellipse_pts]
         
         cones.append({
             'center': (fp.x, fp.y),

@@ -59,6 +59,32 @@ def smooth_observed_motion(
         raise ValueError(f"Unknown smoothing method: {method}")
 
 
+def calculate_motion_jitter(history: List[Tuple[float, float]]) -> float:
+    """
+    Calculate storm motion jitter (velocity standard deviation).
+    
+    Args:
+        history: List of (u, v) motion vectors in m/s
+        
+    Returns:
+        Combined standard deviation of velocity components in m/s
+    """
+    if len(history) < 2:
+        return 0.0
+    
+    import math
+    u_vals = [h[0] for h in history]
+    v_vals = [h[1] for h in history]
+    
+    def std_dev(data):
+        mean = sum(data) / len(data)
+        variance = sum((x - mean)**2 for x in data) / len(data)
+        return math.sqrt(variance)
+    
+    # Combined jitter: sqrt(std_u^2 + std_v^2)
+    return math.sqrt(std_dev(u_vals)**2 + std_dev(v_vals)**2)
+
+
 def compute_propagation(
     v_obs: Tuple[float, float],
     v_mean_star: Tuple[float, float]

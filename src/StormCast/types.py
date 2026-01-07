@@ -29,6 +29,7 @@ class StormState:
     v: float
     h_core: float
     track_history: int = 1
+    motion_jitter: float = 0.0
     timestamp: Optional[datetime] = None
     
     @property
