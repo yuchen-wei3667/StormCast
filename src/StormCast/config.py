@@ -118,12 +118,12 @@ class UncertaintyParams:
     jitter_multiplier: float # Multiplier for velocity standard deviation
 
 UNCERTAINTY_PARAMS = UncertaintyParams(
-    sigma_min=3.0,
-    sigma_range=15.0,
+    sigma_min=1.5,
+    sigma_range=3.0,
     alpha_decay=0.5,
-    sigma_obs=5.0,
-    sigma_env=4.0,
-    jitter_multiplier=1.5,
+    sigma_obs=4.0,
+    sigma_env=2.5,
+    jitter_multiplier=0.12,
 )
 
 # =============================================================================
