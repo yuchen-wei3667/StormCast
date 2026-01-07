@@ -49,8 +49,8 @@ class BlendingWeights:
     w_bunkers: float  # Weight for Bunkers deviant motion
 
 DEFAULT_BLENDING_WEIGHTS = BlendingWeights(
-    w_obs=0.5,
-    w_mean=0.2,
+    w_obs=0.4,
+    w_mean=0.3,
     w_bunkers=0.3,
 )
 """Default blending weights for warm-season convection."""
@@ -98,10 +98,10 @@ class KalmanParams:
 KALMAN_PARAMS = KalmanParams(
     alpha=0.7,
     dt_default=300.0,      # 5 minutes
-    sigma_pos=1500.0,      # meters
-    sigma_vel=3.0,         # m/s
+    sigma_pos=5000.0,      # meters
+    sigma_vel=12.0,        # m/s
     q_pos=10000.0,         # (100 m)²
-    q_vel=9.0,             # (3 m/s)²
+    q_vel=144.0,           # (12 m/s)²
 )
 
 # =============================================================================
@@ -117,11 +117,11 @@ class UncertaintyParams:
     sigma_env: float      # Environmental (RAP) uncertainty (m/s)
 
 UNCERTAINTY_PARAMS = UncertaintyParams(
-    sigma_min=1.0,
-    sigma_range=5.0,
+    sigma_min=3.0,
+    sigma_range=15.0,
     alpha_decay=0.5,
-    sigma_obs=2.0,
-    sigma_env=1.5,
+    sigma_obs=5.0,
+    sigma_env=4.0,
 )
 
 # =============================================================================
