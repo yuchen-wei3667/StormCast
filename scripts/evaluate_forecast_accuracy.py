@@ -25,7 +25,7 @@ from StormCast.forecast import forecast_with_uncertainty
 
 def evaluate_coverage(data_dir, max_files=1000):
     lead_times = [900, 1800, 2700, 3600] # 15, 30, 45, 60 min
-    stats = {lt: {'hits': 0, 'total': 0} for lt in lead_times}
+    stats = {lt: {'hits': 0, 'total': 0, 'mae': [], 'sigma_avg': []} for lt in lead_times}
     
     file_list = []
     for date_folder in sorted(os.listdir(data_dir)):
@@ -42,7 +42,7 @@ def evaluate_coverage(data_dir, max_files=1000):
     
     CHI2_95 = 5.991
     
-    print(f"Evaluating {len(file_list)} files with jitter support...")
+    print(f"Evaluating accuracy for {len(file_list)} tracks...")
     
     for file_path in file_list:
         with open(file_path, 'r') as f:
@@ -50,7 +50,6 @@ def evaluate_coverage(data_dir, max_files=1000):
         
         if len(cell_data) < 10: continue
         
-        # Prepare environment
         props0 = cell_data[0]['properties']
         env = EnvironmentProfile(
             winds={850: (props0['u850'], props0['v850']), 700: (props0['u700'], props0['v700']), 
@@ -67,10 +66,18 @@ def evaluate_coverage(data_dir, max_files=1000):
             cur_y += step.get('dy', 0)
             displacements.append((cur_x, cur_y))
             
+        from StormCast.config import MIN_VELOCITY_THRESHOLD, MAX_VELOCITY_THRESHOLD
         for i, step in enumerate(cell_data):
             dx, dy, dt = step.get('dx', 0), step.get('dy', 0), step.get('dt', 0)
             if dt > 0:
-                motion_history.append((dx/dt, dy/dt))
+                u, v = dx/dt, dy/dt
+                speed = np.sqrt(u**2 + v**2)
+                
+                # Filter velocities (Section 8)
+                if speed < MIN_VELOCITY_THRESHOLD or speed > MAX_VELOCITY_THRESHOLD:
+                    continue
+                    
+                motion_history.append((u, v))
                 kf.predict(dt=dt)
                 kf.update(observation=displacements[i], track_history=len(motion_history))
                 
@@ -97,17 +104,39 @@ def evaluate_coverage(data_dir, max_files=1000):
                             if abs(elapsed - target_lt) <= 150:
                                 f = forecast_with_uncertainty(state, lead_times=[elapsed])[0]
                                 act_x, act_y = displacements[j]
+                                
+                                # Distance error (km)
+                                dist_err = np.sqrt((act_x - f.x)**2 + (act_y - f.y)**2) / 1000.0
+                                stats[target_lt]['mae'].append(dist_err)
+                                
                                 if f.sigma_x > 0 and f.sigma_y > 0:
                                     val = ((act_x - f.x)**2 / f.sigma_x**2) + ((act_y - f.y)**2 / f.sigma_y**2)
                                     if val <= CHI2_95: stats[target_lt]['hits'] += 1
                                     stats[target_lt]['total'] += 1
+                                    # avg sigma in km
+                                    stats[target_lt]['sigma_avg'].append((f.sigma_x + f.sigma_y)/2000.0)
                                 break
                             if elapsed > target_lt + 300: break
     return stats
 
 if __name__ == "__main__":
-    results = evaluate_coverage("/home/yuchenwei/StormCast/StormCast_Training_Data", max_files=200)
-    print("\nAccuracy with Dynamic Jitter Uncertainty:")
+    # Evaluate on the full dataset
+    results = evaluate_coverage("/home/yuchenwei/StormCast/StormCast_Training_Data", max_files=10000)
+    print("\n" + "="*70)
+    print(f"{'Lead':<8} | {'Hit Rate':<10} | {'Miss Rate':<10} | {'MAE (km)':<10} | {'Avg Cone (km)':<12}")
+    print("-" * 70)
+    
     for lt in sorted(results.keys()):
         h, t = results[lt]['hits'], results[lt]['total']
-        print(f"{lt//60:>2} min Coverage: {(h/t*100):>6.1f}% ({h}/{t})")
+        if t == 0: continue
+        
+        hit_rate = h / t
+        miss_rate = 1.0 - hit_rate
+        mae = np.mean(results[lt]['mae'])
+        avg_sigma = np.mean(results[lt]['sigma_avg'])
+        # 95% radius is approx 2.45 * sigma
+        avg_radius = avg_sigma * np.sqrt(5.991)
+        
+        print(f"{lt//60:>2} min   | {hit_rate:>8.1%} | {miss_rate:>8.1%} | {mae:>8.2f} | {avg_radius:>8.2f}")
+    print("="*70)
+    print("Note: Miss Rate is the 'False Alarm Rate' for the 95% uncertainty cone.")
