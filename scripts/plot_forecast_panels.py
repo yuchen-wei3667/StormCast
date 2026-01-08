@@ -25,6 +25,16 @@ from StormCast.kalman import StormKalmanFilter
 from StormCast.forecast import forecast_with_uncertainty
 from StormCast.uncertainty import generate_uncertainty_ellipse
 
+def latlon_to_relative_meters(bbox, centroid, cum_x, cum_y):
+    """Convert bbox [lat, lon] to relative meters from plot origin."""
+    ref_lat, ref_lon = centroid
+    rel_coords = []
+    for lat, lon in bbox:
+        dy = (lat - ref_lat) * 111111.0
+        dx = (lon - ref_lon) * 111111.0 * np.cos(np.radians(ref_lat))
+        rel_coords.append((cum_x + dx, cum_y + dy))
+    return rel_coords
+
 def plot_storm_on_ax(ax, file_path, forecast_step=30):
     with open(file_path, 'r') as f:
         cell_data = json.load(f)
@@ -59,6 +69,10 @@ def plot_storm_on_ax(ax, file_path, forecast_step=30):
             kf.predict(dt=dt)
             kf.update(observation=(cum_x, cum_y), track_history=len(motion_history))
             
+    # Save current polygon
+    curr_step = cell_data[forecast_step]
+    current_poly = latlon_to_relative_meters(curr_step['bbox'], curr_step['centroid'], kf.x, kf.y)
+            
     # Future track (capping at 60 minutes / 3600s for direct comparison)
     future_time_elapsed = 0
     actual_positions = {}
@@ -69,14 +83,17 @@ def plot_storm_on_ax(ax, file_path, forecast_step=30):
         future_time_elapsed += dt
         cum_x += cell_data[i].get('dx', 0)
         cum_y += cell_data[i].get('dy', 0)
-        
-        # Check if we hit a lead time
-        for lead in target_leads:
-            if lead not in actual_positions and abs(future_time_elapsed - lead) < 150:
-                actual_positions[lead] = (cum_x, cum_y)
-        
         future_x.append(cum_x)
         future_y.append(cum_y)
+        
+        # Save actual future polygons at lead times
+        for lead in target_leads:
+            if lead not in actual_positions and abs(future_time_elapsed - lead) < 150:
+                actual_positions[lead] = {
+                    'pos': (cum_x, cum_y),
+                    'poly': latlon_to_relative_meters(cell_data[i]['bbox'], cell_data[i]['centroid'], cum_x, cum_y)
+                }
+        
         if future_time_elapsed >= 3600:
             break
             
@@ -107,6 +124,11 @@ def plot_storm_on_ax(ax, file_path, forecast_step=30):
     ax.plot(np.array(future_x)/1000, np.array(future_y)/1000, color='white', linestyle='--', alpha=0.6, label='Actual')
     ax.scatter(kf.x/1000, kf.y/1000, color='yellow', s=30, zorder=5)
     
+    # Plot Current Polygon
+    px, py = zip(*current_poly)
+    ax.fill(np.array(px)/1000, np.array(py)/1000, color='yellow', alpha=0.2, hatch='///', label='Observed Cell')
+    ax.plot(np.array(px)/1000, np.array(py)/1000, color='yellow', linewidth=0.8, alpha=0.5)
+    
     colors = ['#FFD700', '#FFA500', '#FF8C00', '#FF4500']
     for i, fp in enumerate(forecast_points):
         ellipse = generate_uncertainty_ellipse(fp.sigma_x, fp.sigma_y)
@@ -120,11 +142,16 @@ def plot_storm_on_ax(ax, file_path, forecast_step=30):
         # Plot Forecast Marker
         ax.scatter(fp.x/1000, fp.y/1000, color=colors[i], marker='x', s=20)
         
-        # Plot GROUND TRUTH Marker if available (White dots)
+        # Plot GROUND TRUTH Marker and Polygon if available
         lead_val = int(fp.lead_time)
         if lead_val in actual_positions:
-            ax_x, ax_y = actual_positions[lead_val]
+            act_data = actual_positions[lead_val]
+            ax_x, ax_y = act_data['pos']
             ax.scatter(ax_x/1000, ax_y/1000, color='white', marker='o', s=15, edgecolors='black', linewidths=0.5, alpha=0.8, zorder=6)
+            
+            # Actual Poly outline
+            apx, apy = zip(*act_data['poly'])
+            ax.plot(np.array(apx)/1000, np.array(apy)/1000, color='white', linewidth=1.0, alpha=0.6, linestyle=':')
             
     ax.set_title(f"Storm {os.path.basename(file_path).split('.')[0]} (J: {jitter:.1f})", color='white', fontsize=10)
     ax.tick_params(colors='gray', labelsize=8)
