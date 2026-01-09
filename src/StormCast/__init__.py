@@ -35,6 +35,10 @@ from .forecast import (
     forecast_position,
     generate_forecast_track,
 )
+from .core import (
+    StormCastEngine,
+    ForecastResult,
+)
 
 __version__ = "0.1.0"
 __all__ = [
@@ -67,4 +71,7 @@ __all__ = [
     # Forecast
     "forecast_position",
     "generate_forecast_track",
+    # Core
+    "StormCastEngine",
+    "ForecastResult",
 ]
