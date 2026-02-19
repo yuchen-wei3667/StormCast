@@ -27,6 +27,20 @@
 > [!TIP]
 > **Optimization Finding:** Expanding the motion smoothing window to 9 steps and reducing the Kalman Filter process noise (`q_pos`/`q_vel`) by a factor of 10 yielded the best overall deterministic accuracy. This configuration reduced the 30-min MAE from 12.26 km (baseline) to 11.83 km while marginally improving the Hit Rate.
 
+### Verification Run: 2026-02-19 (Full Wind Profile Integration)
+**Sample Size:** 2,000 files (Subset)
+**Parameters:** Full Wind Profiles (1000mb - 100mb at 25mb intervals), `window: 9`, `q_pos/q_vel: scaled by 0.1`
+
+| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
+|-----------|----------|-----------|----------|-----------------------|
+| 15 min    | 82.9%    | 17.1%     | 7.22     | 4.47                  |
+| 30 min    | 73.3%    | 26.7%     | 12.33    | 6.30                  |
+| 45 min    | 63.3%    | 36.7%     | 17.33    | 7.70                  |
+| 60 min    | 56.0%    | 44.0%     | 22.36    | 8.89                  |
+
+> [!NOTE]
+> **Full Wind Profile Finding:** Integrating the full 1000mb - 100mb wind field profile (37 levels, 25mb intervals) slightly changed deterministic accuracy (30-min MAE shifted from 11.83 km to 12.33 km). The broader data set impacts the adaptive steering and shear calculations. Further calibration of the Gaussian height-weight transitions (`GAUSSIAN_WEIGHT_PARAMS`) may be needed to explicitly tune the model for these added vertical layers.
+
 ## Definitions
 * **Hit Rate**: Percentage of observed storm locations falling within the predicted 95% uncertainty cone.
 * **Miss Rate**: 100% - Hit Rate.

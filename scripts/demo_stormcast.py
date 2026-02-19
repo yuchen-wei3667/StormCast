@@ -76,14 +76,40 @@ def main():
     print_section("Step 1: Data Acquisition")
     
     # Synthetic RAP wind profile (typical spring storm environment)
-    # Southwesterly flow increasing with height
+    # Southwesterly flow increasing with height (interpolated across all levels)
+    # 1000mb -> 850mb: 10m/s -> 13m/s
+    # 850mb -> 700mb: 13m/s -> 18m/s
+    # 700mb -> 500mb: 18m/s -> 28m/s
+    # 500mb -> 250mb: 28m/s -> 40m/s
+    # 250mb -> 100mb: 40m/s -> 45m/s
+    
+    def interpolate_wind(level):
+        if level >= 850:
+            t = (1000 - level) / 150.0  # 1000 to 850
+            u = 8.0 + t * 2.0
+            v = 6.0 + t * 2.0
+        elif level >= 700:
+            t = (850 - level) / 150.0
+            u = 10.0 + t * 5.0
+            v = 8.0 + t * 2.0
+        elif level >= 500:
+            t = (700 - level) / 200.0
+            u = 15.0 + t * 10.0
+            v = 10.0 + t * 2.0
+        elif level >= 250:
+            t = (500 - level) / 250.0
+            u = 25.0 + t * 15.0
+            v = 12.0 - t * 7.0
+        else:
+            t = (250 - level) / 150.0
+            u = 40.0 + t * 5.0
+            v = 5.0 - t * 2.0
+        return (u, v)
+
+    winds = {p: interpolate_wind(p) for p in PRESSURE_LEVELS}
+
     environment = EnvironmentProfile(
-        winds={
-            850: (10.0, 8.0),   # ~13 m/s from SSW at low levels
-            700: (15.0, 10.0), # ~18 m/s from SW
-            500: (25.0, 12.0), # ~28 m/s from WSW at steering level
-            250: (40.0, 5.0),  # ~40 m/s from W at jet level
-        },
+        winds=winds,
         timestamp=datetime.now()
     )
     

@@ -10,15 +10,18 @@ from typing import Dict, Tuple
 # =============================================================================
 # Pressure Levels (Section 3.2)
 # =============================================================================
-PRESSURE_LEVELS: Tuple[int, ...] = (850, 700, 500, 250)
-"""Pressure levels in mb for environmental wind extraction."""
+PRESSURE_LEVELS: Tuple[int, ...] = tuple(range(1000, 75, -25))
+"""Pressure levels in mb for environmental wind extraction (1000mb to 100mb)."""
+
+def _pressure_to_height_km(p_mb: float) -> float:
+    """Convert pressure (mb) to approximate height (km AGL) using standard atmosphere."""
+    # Using simple standard atmosphere approximation
+    # H = 44.3308 * (1 - (P/1013.25)^0.190263)
+    return 44.3308 * (1 - (p_mb / 1013.25)**0.190263)
 
 # Approximate heights AGL for reference
 LEVEL_HEIGHTS: Dict[int, float] = {
-    850: 1.5,   # km AGL
-    700: 3.0,   # km AGL
-    500: 5.5,   # km AGL
-    250: 10.5,  # km AGL
+    p: _pressure_to_height_km(p) for p in PRESSURE_LEVELS
 }
 
 # =============================================================================
@@ -31,10 +34,7 @@ class GaussianWeightParams:
     sigma: float # Spread (km)
 
 GAUSSIAN_WEIGHT_PARAMS: Dict[int, GaussianWeightParams] = {
-    850: GaussianWeightParams(mu=3.0, sigma=3.0),
-    700: GaussianWeightParams(mu=5.0, sigma=3.0),
-    500: GaussianWeightParams(mu=8.0, sigma=3.0),
-    250: GaussianWeightParams(mu=12.0, sigma=3.0),
+    p: GaussianWeightParams(mu=LEVEL_HEIGHTS[p], sigma=3.0) for p in PRESSURE_LEVELS
 }
 """Gaussian parameters for each pressure level's height-dependent weight."""
 

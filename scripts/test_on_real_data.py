@@ -53,14 +53,19 @@ def process_file(file_path, overrides=None):
     props = first_step['properties']
     wind_data = props.get('wind_field', props)
     
+    from StormCast.config import PRESSURE_LEVELS
+    
+    winds = {}
+    for p in PRESSURE_LEVELS:
+        # Some datasets might be missing certain levels, use 0 or skip
+        u = wind_data.get(f'u{p}')
+        v = wind_data.get(f'v{p}')
+        if u is not None and v is not None:
+            winds[p] = (u, v)
+
     # Prepare environment
     env = EnvironmentProfile(
-        winds={
-            850: (wind_data['u850'], wind_data['v850']),
-            700: (wind_data['u700'], wind_data['v700']),
-            500: (wind_data['u500'], wind_data['v500']),
-            250: (wind_data['u250'], wind_data['v250']),
-        },
+        winds=winds,
         timestamp=datetime.fromisoformat(first_step['timestamp'])
     )
     
