@@ -157,8 +157,8 @@ class StormCastEngine:
 
         # --- B. Motion Blending ---
         # 1. Smooth observations
-        # Use last 5 observations for smoothing, similar to demo/best practices
-        recent_history = self.motion_history[-5:]
+        from .config import MOTION_SMOOTHING_WINDOW
+        recent_history = self.motion_history[-MOTION_SMOOTHING_WINDOW:]
         v_obs_smooth = smooth_observed_motion(recent_history, method="exponential")
         
         # 2. Dynamic Weights

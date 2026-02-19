@@ -55,6 +55,9 @@ DEFAULT_BLENDING_WEIGHTS = BlendingWeights(
 )
 """Default blending weights for warm-season convection."""
 
+MOTION_SMOOTHING_WINDOW: int = 9
+"""Number of past observations to use for smoothing (optimized for MAE)."""
+
 # Dynamic weight presets
 SHALLOW_STORM_WEIGHTS = BlendingWeights(w_obs=0.3, w_mean=0.3, w_bunkers=0.4)
 MATURE_STORM_WEIGHTS = BlendingWeights(w_obs=0.6, w_mean=0.15, w_bunkers=0.25)
@@ -100,8 +103,8 @@ KALMAN_PARAMS = KalmanParams(
     dt_default=300.0,      # 5 minutes
     sigma_pos=5000.0,      # meters
     sigma_vel=12.0,        # m/s
-    q_pos=10000.0,         # (100 m)²
-    q_vel=144.0,           # (12 m/s)²
+    q_pos=1000.0,          # Reduced by 10x for MAE optimization
+    q_vel=14.4,            # Reduced by 10x for MAE optimization
 )
 
 # =============================================================================
