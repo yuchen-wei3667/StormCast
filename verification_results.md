@@ -41,6 +41,20 @@
 > [!NOTE]
 > **Full Wind Profile Finding:** Integrating the full 1000mb - 100mb wind field profile (37 levels, 25mb intervals) slightly changed deterministic accuracy (30-min MAE shifted from 11.83 km to 12.33 km). The broader data set impacts the adaptive steering and shear calculations. Further calibration of the Gaussian height-weight transitions (`GAUSSIAN_WEIGHT_PARAMS`) may be needed to explicitly tune the model for these added vertical layers.
 
+### Verification Run: 2026-02-19 (Deep Gaussian Tuning for 37 Layers)
+**Sample Size:** 2,000 files (Subset)
+**Parameters:** Full Wind Profiles (1000mb - 100mb), `window: 9`, `q_pos/q_vel: scaled by 0.1`, `Gaussian Sigma: 10.0 km`
+
+| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
+|-----------|----------|-----------|----------|-----------------------|
+| 15 min    | 84.6%    | 15.4%     | 6.80     | 4.47                  |
+| 30 min    | 79.3%    | 20.7%     | 11.25    | 6.30                  |
+| 45 min    | 72.3%    | 27.7%     | 15.54    | 7.70                  |
+| 60 min    | 65.7%    | 34.3%     | 19.85    | 8.89                  |
+
+> [!TIP]
+> **Sigma Smoothing Optimization:** Standardizing the Gaussian spread overlap to a wide `10.0 km` across all 37 dynamic pressure layers aggressively smooths the altitude-dependent steering contributions. This entirely resolved the overlap degradation caused by the dense 25mb bands, producing our most deterministic 30-min forecast yet (11.25 km MAE) and boosting Hit Rates from 73% up to 79.3%.
+
 ## Definitions
 * **Hit Rate**: Percentage of observed storm locations falling within the predicted 95% uncertainty cone.
 * **Miss Rate**: 100% - Hit Rate.

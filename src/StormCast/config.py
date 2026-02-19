@@ -34,7 +34,7 @@ class GaussianWeightParams:
     sigma: float # Spread (km)
 
 GAUSSIAN_WEIGHT_PARAMS: Dict[int, GaussianWeightParams] = {
-    p: GaussianWeightParams(mu=LEVEL_HEIGHTS[p], sigma=3.0) for p in PRESSURE_LEVELS
+    p: GaussianWeightParams(mu=LEVEL_HEIGHTS[p], sigma=10.0) for p in PRESSURE_LEVELS
 }
 """Gaussian parameters for each pressure level's height-dependent weight."""
 
