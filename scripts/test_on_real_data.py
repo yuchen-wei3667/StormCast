@@ -215,7 +215,7 @@ def main():
         'w_mean': 0.3,
         'w_bunkers': 0.3,
         'window': 9,
-        'process_noise_scale': 0.1
+        'process_noise_scale': 0.2
     }
     # Process a representative subset of 2000 files for quick result
     metrics = run_evaluation(data_path, max_files=2000, overrides=overrides)

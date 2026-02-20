@@ -13,16 +13,17 @@ from test_on_real_data import run_evaluation
 def optimize():
     data_path = os.path.expanduser("~/StormCast_Data")
     
-    # Define search space
-    w_obs_list = [0.4]
-    window_list = [9]
-    pnoise_list = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+    # Define comprehensive 3D search space
+    w_obs_list = [0.2, 0.4, 0.6, 0.8]
+    window_list = [5, 7, 9, 11]
+    pnoise_list = [0.01, 0.05, 0.1, 0.2, 0.5]
     
     best_mae = float('inf')
     best_params = {}
     
     results = []
     
+    print(f"Starting Grid Search with {len(w_obs_list)*len(window_list)*len(pnoise_list)} combinations...")
     print(f"{'w_obs':<10} | {'window':<10} | {'pnoise':<10} | {'MAE (km)':<15} | {'Hit Rate (%)':<15}")
     print("-" * 65)
     
@@ -38,7 +39,7 @@ def optimize():
             'process_noise_scale': pnoise
         }
         
-        # Run on a smaller subset (500 files) for speed
+        # Run on a smaller subset (500 files) for speed during grid search
         metrics = run_evaluation(data_path, max_files=500, overrides=overrides)
         
         # We optimize based on 30-min MAE
@@ -47,11 +48,12 @@ def optimize():
             mae_30 = np.mean(errs_30) / 1000.0
             hit_rate_30 = np.mean(metrics['inside'][30]) * 100.0
             
-            print(f"{w_obs:<10.1f} | {window:<10} | {mae_30:<15.2f} | {hit_rate_30:<15.1f}")
+            print(f"{w_obs:<10.1f} | {window:<10} | {pnoise:<10.2f} | {mae_30:<15.2f} | {hit_rate_30:<15.1f}")
             
             results.append({
                 'w_obs': w_obs,
                 'window': window,
+                'pnoise': pnoise,
                 'mae_30': mae_30,
                 'hit_rate_30': hit_rate_30
             })
@@ -60,7 +62,7 @@ def optimize():
                 best_mae = mae_30
                 best_params = overrides
         else:
-            print(f"{w_obs:<10.1f} | {window:<10} | {'N/A':<15} | {'N/A':<15}")
+            print(f"{w_obs:<10.1f} | {window:<10} | {pnoise:<10.2f} | {'N/A':<15} | {'N/A':<15}")
 
     print("\n" + "="*40)
     print("Optimization Complete")

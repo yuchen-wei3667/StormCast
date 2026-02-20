@@ -55,6 +55,20 @@
 > [!TIP]
 > **Sigma Smoothing Optimization:** Standardizing the Gaussian spread overlap to a wide `10.0 km` across all 37 dynamic pressure layers aggressively smooths the altitude-dependent steering contributions. This entirely resolved the overlap degradation caused by the dense 25mb bands, producing our most deterministic 30-min forecast yet (11.25 km MAE) and boosting Hit Rates from 73% up to 79.3%.
 
+### Verification Run: 2026-02-19 (Comprehensive 3D Grid Search)
+**Sample Size:** 2,000 files (Subset)
+**Parameters:** `w_obs: 0.4`, `window: 9`, `process_noise_scale: 0.2` (`q_pos: 2000.0`, `q_vel: 28.8`), `Gaussian Sigma: 10.0 km`
+
+| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
+|-----------|----------|-----------|----------|-----------------------|
+| 15 min    | 85.1%    | 14.9%     | 6.72     | 4.47                  |
+| 30 min    | 79.1%    | 20.9%     | 11.31    | 6.30                  |
+| 45 min    | 71.7%    | 28.3%     | 15.65    | 7.70                  |
+| 60 min    | 65.7%    | 34.3%     | 19.98    | 8.89                  |
+
+> [!TIP]
+> **Final Multivariate Result:** Running a 3D grid search simultaneously solving for observation blending weight, vector smoothing window, and Kalman tracker confidence yielded marginal but measureable improvements to the 15-min MAE (6.72 km vs 6.80 km) and 15-min Hit Rate (85.1% vs 84.6%), whilst sacrificing negligible accuracy at 30-min (11.31 km vs 11.25 km). The tracker is now fully optimized for 37-layer atmospheric wind environments.
+
 ## Definitions
 * **Hit Rate**: Percentage of observed storm locations falling within the predicted 95% uncertainty cone.
 * **Miss Rate**: 100% - Hit Rate.

@@ -103,8 +103,8 @@ KALMAN_PARAMS = KalmanParams(
     dt_default=300.0,      # 5 minutes
     sigma_pos=5000.0,      # meters
     sigma_vel=12.0,        # m/s
-    q_pos=1000.0,          # Reduced by 10x for MAE optimization
-    q_vel=14.4,            # Reduced by 10x for MAE optimization
+    q_pos=2000.0,          # Reduced by 5x (process_noise_scale = 0.2) for MAE optimization
+    q_vel=28.8,            # Reduced by 5x (process_noise_scale = 0.2) for MAE optimization
 )
 
 # =============================================================================
