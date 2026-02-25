@@ -51,10 +51,13 @@ def evaluate_coverage(data_dir, max_files=1000):
         if len(cell_data) < 10: continue
         
         props0 = cell_data[0]['properties']
+        wf = props0['wind_field']
         env = EnvironmentProfile(
-            winds={850: (props0['u850'], props0['v850']), 700: (props0['u700'], props0['v700']), 
-                   500: (props0['u500'], props0['v500']), 250: (props0['u250'], props0['v250'])},
-            timestamp=datetime.fromisoformat(cell_data[0]['timestamp'])
+            winds={850: (wf['u850'], wf['v850']), 700: (wf['u700'], wf['v700']), 
+                   500: (wf['u500'], wf['v500']), 250: (wf['u250'], wf['v250'])},
+            timestamp=datetime.fromisoformat(cell_data[0]['timestamp']),
+            freezing_level_km=props0.get('freezing_level_height'),
+            mucape=props0.get('MUCAPE')
         )
         
         kf = StormKalmanFilter(initial_state=[0.0, 0.0, 0.0, 0.0])
@@ -78,23 +81,25 @@ def evaluate_coverage(data_dir, max_files=1000):
                     continue
                     
                 motion_history.append((u, v))
+                # Note: Process noise is now properly globally scaled to 0.1 in config.py
                 kf.predict(dt=dt)
                 kf.update(observation=displacements[i], track_history=len(motion_history))
                 
                 if len(motion_history) >= 5:
-                    h_core = compute_storm_core_height(step['properties']['EchoTop30'], step['properties']['EchoTop50'])
+                    h_core = compute_storm_core_height(step['properties'].get('p100EchoTop30'), step['properties'].get('EchoTop50'))
                     v_mean = compute_adaptive_steering(env, h_core)
                     v_bunkers = compute_bunkers_motion(env, h_core)
                     v_obs = smooth_observed_motion(motion_history[-5:])
                     jitter = calculate_motion_jitter(motion_history[-10:])
                     
                     props = step['properties']
-                    shear = np.sqrt((props['u500'] - props['u850'])**2 + (props['v500'] - props['v850'])**2)
-                    weights = adjust_weights_for_maturity(h_core, len(motion_history), shear)
+                    wf = props['wind_field']
+                    shear = np.sqrt((wf['u500'] - wf['u850'])**2 + (wf['v500'] - wf['v850'])**2)
+                    weights = adjust_weights_for_maturity(h_core, len(motion_history), shear, mucape=env.mucape)
                     v_final = blend_motion(v_obs, v_mean, v_bunkers, weights)
                     
                     state = StormState(x=kf.x, y=kf.y, u=v_final[0], v=v_final[1], 
-                                      h_core=h_core, track_history=len(motion_history),
+                                      h_core=h_core, echo_top_30=step['properties'].get('p100EchoTop30', 10.0), track_history=len(motion_history),
                                       motion_jitter=jitter)
                     
                     for target_lt in lead_times:
@@ -121,7 +126,7 @@ def evaluate_coverage(data_dir, max_files=1000):
 
 if __name__ == "__main__":
     # Evaluate on the full dataset
-    results = evaluate_coverage("/home/yuchenwei/StormCast/StormCast_Training_Data", max_files=10000)
+    results = evaluate_coverage("/home/yuchenwei/StormCast_Data", max_files=10000)
     print("\n" + "="*70)
     print(f"{'Lead':<8} | {'Hit Rate':<10} | {'Miss Rate':<10} | {'MAE (km)':<10} | {'Avg Cone (km)':<12}")
     print("-" * 70)

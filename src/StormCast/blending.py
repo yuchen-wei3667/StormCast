@@ -148,7 +148,8 @@ def adjust_weights_for_maturity(
     h_core: float,
     track_history: int,
     shear_magnitude: float,
-    base_weights: Optional[BlendingWeights] = None
+    base_weights: Optional[BlendingWeights] = None,
+    mucape: Optional[float] = None
 ) -> BlendingWeights:
     """
     Dynamically adjust blending weights based on storm characteristics.
@@ -199,6 +200,15 @@ def adjust_weights_for_maturity(
     if shear_magnitude > 25.0:
         # Strong shear: increase Bunkers influence
         w_bunkers += 0.05
+        w_obs -= 0.05
+        
+    # Proxy Mode Classification: Stratiform
+    if mucape is not None and mucape <= 250 and h_core <= 6.0:
+        # Stratiform footprint is advection-dominant and lacks deep-layer rotation
+        # Therefore Bunkers right-mover deviation should be completely negated.
+        # Centroid tracking is also inherently more stable with large stratiform boundaries.
+        w_bunkers = 0.0
+        w_mean += 0.15
         w_obs -= 0.05
     
     # Ensure weights are non-negative and normalize

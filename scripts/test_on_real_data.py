@@ -66,7 +66,9 @@ def process_file(file_path, overrides=None):
     # Prepare environment
     env = EnvironmentProfile(
         winds=winds,
-        timestamp=datetime.fromisoformat(first_step['timestamp'])
+        timestamp=datetime.fromisoformat(first_step['timestamp']),
+        freezing_level_km=props.get('freezing_level_height'),
+        mucape=props.get('MUCAPE')
     )
     
     kf = StormKalmanFilter(initial_state=[0.0, 0.0, 0.0, 0.0])

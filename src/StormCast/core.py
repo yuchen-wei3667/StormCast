@@ -97,8 +97,14 @@ class StormCastEngine:
             echo_top_50: Height of 50 dBZ echo top (km AGL)
             timestamp: Observation time
         """
-        self.current_h_core = compute_storm_core_height(echo_top_30, echo_top_50)
+        # Extract freezing level if environment is present
+        fz_level = None
+        if self.environment:
+            fz_level = self.environment.freezing_level_km
+            
+        self.current_h_core = compute_storm_core_height(echo_top_30, echo_top_50, freezing_level_km=fz_level)
         self.last_update_time = timestamp or datetime.now()
+        self.current_echo_top_30 = echo_top_30
         
         # 1. Update Position History
         self.position_history.append((x, y))
@@ -148,7 +154,11 @@ class StormCastEngine:
         v_mean = compute_adaptive_steering(self.environment, self.current_h_core)
         
         # 2. Shear & Bunkers
-        shear = compute_effective_shear(self.environment, self.current_h_core)
+        shear = compute_effective_shear(
+            self.environment, 
+            self.current_h_core, 
+            echo_top_30=getattr(self, 'current_echo_top_30', 10.0)
+        )
         try:
            v_bunkers = compute_bunkers_motion(self.environment, self.current_h_core, right_mover=True)
         except Exception:
@@ -167,6 +177,7 @@ class StormCastEngine:
             h_core=self.current_h_core,
             track_history=track_history_len,
             shear_magnitude=shear_mag,
+            mucape=self.environment.mucape
         )
         
         # 3. Blend
@@ -183,6 +194,7 @@ class StormCastEngine:
             u=v_final[0],
             v=v_final[1],
             h_core=self.current_h_core,
+            echo_top_30=getattr(self, 'current_echo_top_30', 10.0),
             track_history=track_history_len,
             motion_jitter=jitter,
             timestamp=self.last_update_time
