@@ -24,6 +24,7 @@ from StormCast.diagnostics import (
 )
 from StormCast.blending import (
     smooth_observed_motion,
+    smooth_position_track,
     blend_motion,
     adjust_weights_for_maturity
 )
@@ -74,6 +75,7 @@ def process_file(file_path, overrides=None):
     kf = StormKalmanFilter(initial_state=[0.0, 0.0, 0.0, 0.0])
     
     motion_history = []
+    position_history = []
     cumulative_x = 0.0
     cumulative_y = 0.0
     
@@ -94,13 +96,17 @@ def process_file(file_path, overrides=None):
         u_obs_raw = dx / dt
         v_obs_raw = dy / dt
         motion_history.append((u_obs_raw, v_obs_raw))
+        position_history.append((cumulative_x, cumulative_y))
         
         try:
             # Note: Using p100EchoTop30 based on data analysis
             h_core = compute_storm_core_height(props.get('p100EchoTop30'), props.get('EchoTop50'))
             v_mean_star = compute_adaptive_steering(env, h_core)
             v_bunkers = compute_bunkers_motion(env, h_core)
-            v_obs_smooth = smooth_observed_motion(motion_history[-window:]) 
+            
+            smoothing_method = o.get('smoothing_method', 'exponential')
+            alpha = o.get('alpha', 0.3)
+            v_obs_smooth = smooth_observed_motion(motion_history[-window:], method=smoothing_method, alpha=alpha) 
             
             if any(np.isnan([v_obs_smooth[0], v_obs_smooth[1], v_mean_star[0], v_mean_star[1], v_bunkers[0], v_bunkers[1]])):
                 continue
@@ -118,7 +124,14 @@ def process_file(file_path, overrides=None):
             
             process_noise_scale = o.get('process_noise_scale', 1.0)
             kf.predict(dt=dt, process_noise_scale=process_noise_scale)
-            kf.update(observation=(cumulative_x, cumulative_y), track_history=len(motion_history))
+            
+            if o.get('smooth_positions', False):
+                smoothed_track = smooth_position_track(position_history[-window:], window_length=window)
+                curr_obs = smoothed_track[-1]
+            else:
+                curr_obs = (cumulative_x, cumulative_y)
+                
+            kf.update(observation=curr_obs, track_history=len(motion_history))
             
             # Multi-lead time evaluation
             current_state = StormState(
@@ -213,11 +226,14 @@ def run_evaluation(data_path, max_files=None, overrides=None):
 def main():
     data_path = os.path.expanduser("~/StormCast_Data")
     overrides = {
-        'w_obs': 0.4,
-        'w_mean': 0.3,
-        'w_bunkers': 0.3,
-        'window': 9,
-        'process_noise_scale': 0.2
+        'w_obs': 0.45,
+        'w_mean': 0.275,
+        'w_bunkers': 0.275,
+        'window': 12,
+        'process_noise_scale': 0.2,
+        'smoothing_method': 'exponential',
+        'smooth_positions': True,
+        'alpha': 0.25
     }
     # Process a representative subset of 2000 files for quick result
     metrics = run_evaluation(data_path, max_files=2000, overrides=overrides)
