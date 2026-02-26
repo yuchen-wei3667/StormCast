@@ -249,6 +249,48 @@ def compute_bunkers_motion(
     v_bunkers = v_mean + d * n_v
     
     return (u_bunkers, v_bunkers)
+def compute_corfidi_motion(
+    profile: EnvironmentProfile,
+    right_mover: bool = True
+) -> Tuple[float, float]:
+    """
+    Compute Corfidi-type (MCS) deviant storm motion estimate.
+    
+    V_corfidi = V_mean(850-250) - V_llj(850)
+    
+    This is the "Downshear Corfidi" vector used for predicting the motion
+    of mesoscale convective systems (MCSs).
+    
+    Args:
+        profile: Environmental wind profile
+        right_mover: Unused for standard Corfidi, kept for signature parity
+        
+    Returns:
+        Corfidi motion vector (u_corfidi, v_corfidi) in m/s
+    """
+    # Use a deep-layer mean (850 to 250 mb)
+    u_vals, v_vals = [], []
+    for level in [850, 700, 500, 250]:
+        if level in profile.winds:
+            u, v = profile.winds[level]
+            u_vals.append(u)
+            v_vals.append(v)
+    
+    if not u_vals:
+        return (0.0, 0.0)
+        
+    u_mean = sum(u_vals) / len(u_vals)
+    v_mean = sum(v_vals) / len(v_vals)
+    
+    # Inflow/LLJ (850 mb)
+    u_llj, v_llj = profile.get_wind(850)
+    
+    # Downshear Corfidi: V_mcs = V_mean - V_llj
+    # Note: V_mean is effectively V_advection, V_llj is V_propagation
+    u_corfidi = u_mean - u_llj
+    v_corfidi = v_mean - v_llj
+    
+    return (u_corfidi, v_corfidi)
 
 
 def compute_storm_core_height(

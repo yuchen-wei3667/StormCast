@@ -36,7 +36,7 @@ This ensures that shallow storms are heavily steered by lower tropospheric winds
 ### 4.2 Effective Vertical Wind Shear
 Vertical wind shear is recalculated over the effective depth of the storm rather than using a fixed 0–6 km layer:
 $$ \vec{S}_{eff} = \vec{V}_{top}(H_{core}) - \vec{V}_{base} $$
-where $\vec{V}_{base}$ is typically the 850 mb wind, and $\vec{V}_{top}$ is adaptively selected (e.g., 250 mb for deep storms $H_{core} \geq 10$ km, lowering to 500, 700, or 850 mb for shallower convection).
+where $\vec{V}_{base}$ is typically the 850 mb wind, and $\vec{V}_{top}$ is adaptively selected based on storm depth: 250 mb for deep storms ($H_{core} \geq 10$ km), 500 mb for moderate storms ($H_{core} \geq 5.5$ km), and 700 mb for shallower storms ($H_{core} \geq 3.0$ km).
 
 ### 4.3 Bunkers-Type Storm Motion Estimate
 Using the mean wind and effective shear vector, a Bunkers-style storm motion estimate is computed:
@@ -60,23 +60,34 @@ Weights are dynamically adjusted during runtime based on:
 - **Storm Maturity:** Tracking history under 3 samples shifts 15% weight from observations toward the environment. Over 10 samples shifts 10% toward observations.
 - **Storm Depth:** Shallow storms suppress Bunkers weighting in favor of mean wind; deep storms slightly increase Bunkers influence.
 - **Shear Magnitude:** High effective shear ($> 25$ m s⁻¹) shifts weight to the Bunkers deviation vector to anticipate supercellular organization.
+- **Stratiform Mode:** In stable environments ($MUCAPE \leq 250$ J/kg) where storms are shallow ($H_{core} \leq 6$ km), Bunkers weighting is negated ($w_b = 0$) and steering weights are increased to prioritize environmental advection.
 
 ## 7. Temporal Filtering and State Estimation with Kalman Smoothing
 To ensure stability and continuity, the framework is implemented within a 4-dimensional Kalman filtering architecture. 
 
-### 7.1 State Vector and Transition Model
-The storm state is represented as $\mathbf{x}_k = [x_k, y_k, u_k, v_k]^T$. The temporal evolution operates via linear advection:
+### 7.1 State Vector and Track Smoothing
+The storm state is represented as $\mathbf{x}_k = [x_k, y_k, u_k, v_k]^T$. To condition the noisy centroid coordinate inputs prior to state estimation, position tracks are processed using a Savitzky-Golay filter. This fundamentally reduces spatial tracking jitter without introducing unacceptable latency.
+
+The temporal evolution operates via linear advection:
 $$ \mathbf{x}_{k+1} = \mathbf{F}_k \mathbf{x}_k + \mathbf{w}_k $$
-An explicit forecast smoothing step with coefficient $\alpha$ (default 0.70) blends the raw predicted velocity with the previously forecasted vector to dampen severe scan-to-scan oscillations:
-$$ u_k \leftarrow \alpha u_k + (1-\alpha) \hat{u}_{k-1} $$
+Observations of the velocity are exponentially smoothed over time using a low-pass filter coefficient $\alpha$ (e.g., 0.25) to heavily dampen severe scan-to-scan oscillations before blending with the environmental profile.
 
 ### 7.2 Explicit Noise Matrices
 - **Process Noise ($\mathbf{Q}$):** Adaptively scales depending on the storm's velocity volatility, defaulting to parameters optimized for minimal Mean Absolute Error (MAE) ($Q_{pos} \approx 2000$ m², $Q_{vel} \approx 28.8$ m²/s²).
 - **Observation Error ($\mathbf{R}$):** Represents uncertainty in radar-derived positions. This is strongly tied to tracking history, with the standard observation deviation $\sigma_{pos}$ scaling as $\sigma_{base} \times (1.0 + 5.0 / \max(N_{hist}, 1))$. Newer storms have heavily inflated observation uncertainty, forcing the filter to restrict updates and rely on environmental priors.
 
-## 8. Forecast Generation
-Future positions are generated via linear advection of the blended state vector:
-$$ x(t+\Delta t) = x(t) + u_{final} \Delta t $$
+## 8. Forecast Generation with Adaptive Advection Offset
+Linear advection of a purely environmental steering vector often neglects necessary momentum from ongoing storm-scale processes. Conversely, purely projecting raw radar velocities introduces runaway error at longer lead times due to track noise.
+
+To balance these dynamics, the framework calculates an **adaptive advection offset**. This offset ($\vec{V}_{offset}$) defines the systematic short-term bias between the raw smoothed storm motion and the blended environmental steering over a recent tracking history (e.g., the last 12 observation scans).
+
+$$ \vec{V}_{offset} = \frac{1}{N} \sum_{i=k-N}^{k} (\vec{V}_{obs, i} - \vec{V}_{final, i}) $$
+
+This calculated bias is dampened by an empirical weight (e.g., 0.15) to prevent track divergence, and is explicitly added to the blended environmental velocity during the forward spatial projection:
+
+$$ x(t+\Delta t) = x(t) + (u_{final} + u_{offset}) \Delta t $$
+$$ y(t+\Delta t) = y(t) + (v_{final} + v_{offset}) \Delta t $$
+
 Forecasts are calculated for standard operational lead times (e.g., 15, 30, 45, and 60 minutes) and empirically clipped at 60 minutes to maintain skill boundaries.
 
 ## 9. Uncertainty Representation and Forecast Spread

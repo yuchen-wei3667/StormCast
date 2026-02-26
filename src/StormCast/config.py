@@ -49,14 +49,14 @@ class BlendingWeights:
     w_bunkers: float  # Weight for Bunkers deviant motion
 
 DEFAULT_BLENDING_WEIGHTS = BlendingWeights(
-    w_obs=0.4,
-    w_mean=0.3,
-    w_bunkers=0.3,
+    w_obs=0.6,
+    w_mean=0.2,
+    w_bunkers=0.2,
 )
-"""Default blending weights for warm-season convection."""
+"""Default blending weights (optimized for Operational MAE)."""
 
-MOTION_SMOOTHING_WINDOW: int = 9
-"""Number of past observations to use for smoothing (optimized for MAE)."""
+MOTION_SMOOTHING_WINDOW: int = 10
+"""Number of past observations to use for smoothing (optimized for Operational MAE)."""
 
 # Dynamic weight presets
 SHALLOW_STORM_WEIGHTS = BlendingWeights(w_obs=0.3, w_mean=0.3, w_bunkers=0.4)
@@ -99,12 +99,12 @@ class KalmanParams:
     q_vel: float           # Velocity process noise variance (m²/s²)
 
 KALMAN_PARAMS = KalmanParams(
-    alpha=0.7,
+    alpha=0.97,            # Optimized for Operational MAE
     dt_default=300.0,      # 5 minutes
-    sigma_pos=5000.0,      # meters
+    sigma_pos=800.0,       # Optimized for Operational MAE
     sigma_vel=12.0,        # m/s
-    q_pos=2000.0,          # Reduced by 5x (process_noise_scale = 0.2) for MAE optimization
-    q_vel=28.8,            # Reduced by 5x (process_noise_scale = 0.2) for MAE optimization
+    q_pos=500.0,           # Optimized for Operational MAE (0.05 scale)
+    q_vel=7.2,             # Optimized for Operational MAE (0.05 scale)
 )
 
 # =============================================================================

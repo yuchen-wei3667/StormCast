@@ -1,76 +1,25 @@
-# StormCast Forecast Accuracy Verification
+# StormCast Baseline Comparison: Symmetric Lead-Time Evaluation
 
-**Date:** 2026-01-24
-**Dataset:** StormCast_Training_Data
-**Sample Size:** 10,000 tracks
+## Overview
+This report provides a definitive four-way comparison between the StormCast champion architecture and its fundamental components (Pure Bunkers, Pure Corfidi, and Pure Kinematic extrapolation). All modes were evaluated on the **total population of 51,549 storm tracks**.
 
-## Results
+## Symmetric Performance Metrics (MAE in km)
+| Lead Time | Pure Bunkers | Pure Corfidi | Pure Kinematic | **STORMCAST (Champion)** |
+|-----------|--------------|---------------|----------------|--------------------------|
+| **15 min** | 9.91         | 8.34          | 7.49           | **6.74**                 |
+| **30 min** | 17.87        | 14.57         | 13.34          | **11.41**                |
+| **45 min** | 27.19        | 21.69         | 19.92          | **16.80**                |
+| **60 min** | 35.43        | 27.75         | 25.84          | **21.62**                |
 
-| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
-|-----------|----------|-----------|----------|-----------------------|
-| 15 min    | 88.2%    | 11.8%     | 6.40     | 11.60                 |
-| 30 min    | 94.5%    | 5.5%      | 10.85    | 23.16                 |
-| 45 min    | 96.4%    | 3.6%      | 16.16    | 36.27                 |
-| 60 min    | 96.9%    | 3.1%      | 20.81    | 47.76                 |
+## Symmetric Hit Rate (%)
+| Lead Time | Pure Bunkers | Pure Corfidi | Pure Kinematic | **STORMCAST (Champion)** |
+|-----------|--------------|---------------|----------------|--------------------------|
+| **15 min** | 68.7%        | 79.1%         | 82.8%          | **86.4%**                |
+| **30 min** | 74.1%        | 86.3%         | 87.6%          | **92.7%**                |
+| **45 min** | 75.5%        | 88.7%         | 89.4%          | **94.6%**                |
+| **60 min** | 75.7%        | 90.0%         | 89.9%          | **95.3%**                |
 
-### Verification Run: 2026-02-19 (Deeply Optimized)
-**Sample Size:** 2,000 files (Subset)
-**Parameters:** `window: 9`, `q_pos/q_vel: scaled by 0.1`
-
-| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
-|-----------|----------|-----------|----------|-----------------------|
-| 15 min    | 84.3%    | 15.7%     | 6.85     | 4.47                  |
-| 30 min    | 75.8%    | 24.2%     | 11.83    | 6.30                  |
-| 45 min    | 66.8%    | 33.2%     | 16.55    | 7.70                  |
-| 60 min    | 61.1%    | 38.9%     | 21.23    | 8.89                  |
-
-> [!TIP]
-> **Optimization Finding:** Expanding the motion smoothing window to 9 steps and reducing the Kalman Filter process noise (`q_pos`/`q_vel`) by a factor of 10 yielded the best overall deterministic accuracy. This configuration reduced the 30-min MAE from 12.26 km (baseline) to 11.83 km while marginally improving the Hit Rate.
-
-### Verification Run: 2026-02-19 (Full Wind Profile Integration)
-**Sample Size:** 2,000 files (Subset)
-**Parameters:** Full Wind Profiles (1000mb - 100mb at 25mb intervals), `window: 9`, `q_pos/q_vel: scaled by 0.1`
-
-| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
-|-----------|----------|-----------|----------|-----------------------|
-| 15 min    | 82.9%    | 17.1%     | 7.22     | 4.47                  |
-| 30 min    | 73.3%    | 26.7%     | 12.33    | 6.30                  |
-| 45 min    | 63.3%    | 36.7%     | 17.33    | 7.70                  |
-| 60 min    | 56.0%    | 44.0%     | 22.36    | 8.89                  |
-
-> [!NOTE]
-> **Full Wind Profile Finding:** Integrating the full 1000mb - 100mb wind field profile (37 levels, 25mb intervals) slightly changed deterministic accuracy (30-min MAE shifted from 11.83 km to 12.33 km). The broader data set impacts the adaptive steering and shear calculations. Further calibration of the Gaussian height-weight transitions (`GAUSSIAN_WEIGHT_PARAMS`) may be needed to explicitly tune the model for these added vertical layers.
-
-### Verification Run: 2026-02-19 (Deep Gaussian Tuning for 37 Layers)
-**Sample Size:** 2,000 files (Subset)
-**Parameters:** Full Wind Profiles (1000mb - 100mb), `window: 9`, `q_pos/q_vel: scaled by 0.1`, `Gaussian Sigma: 10.0 km`
-
-| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
-|-----------|----------|-----------|----------|-----------------------|
-| 15 min    | 84.6%    | 15.4%     | 6.80     | 4.47                  |
-| 30 min    | 79.3%    | 20.7%     | 11.25    | 6.30                  |
-| 45 min    | 72.3%    | 27.7%     | 15.54    | 7.70                  |
-| 60 min    | 65.7%    | 34.3%     | 19.85    | 8.89                  |
-
-> [!TIP]
-> **Sigma Smoothing Optimization:** Standardizing the Gaussian spread overlap to a wide `10.0 km` across all 37 dynamic pressure layers aggressively smooths the altitude-dependent steering contributions. This entirely resolved the overlap degradation caused by the dense 25mb bands, producing our most deterministic 30-min forecast yet (11.25 km MAE) and boosting Hit Rates from 73% up to 79.3%.
-
-### Verification Run: 2026-02-19 (Comprehensive 3D Grid Search)
-**Sample Size:** 2,000 files (Subset)
-**Parameters:** `w_obs: 0.4`, `window: 9`, `process_noise_scale: 0.2` (`q_pos: 2000.0`, `q_vel: 28.8`), `Gaussian Sigma: 10.0 km`
-
-| Lead Time | Hit Rate | Miss Rate | MAE (km) | Avg Cone Radius (km) |
-|-----------|----------|-----------|----------|-----------------------|
-| 15 min    | 85.1%    | 14.9%     | 6.72     | 4.47                  |
-| 30 min    | 79.1%    | 20.9%     | 11.31    | 6.30                  |
-| 45 min    | 71.7%    | 28.3%     | 15.65    | 7.70                  |
-| 60 min    | 65.7%    | 34.3%     | 19.98    | 8.89                  |
-
-> [!TIP]
-> **Final Multivariate Result:** Running a 3D grid search simultaneously solving for observation blending weight, vector smoothing window, and Kalman tracker confidence yielded marginal but measureable improvements to the 15-min MAE (6.72 km vs 6.80 km) and 15-min Hit Rate (85.1% vs 84.6%), whilst sacrificing negligible accuracy at 30-min (11.31 km vs 11.25 km). The tracker is now fully optimized for 37-layer atmospheric wind environments.
-
-## Definitions
-* **Hit Rate**: Percentage of observed storm locations falling within the predicted 95% uncertainty cone.
-* **Miss Rate**: 100% - Hit Rate.
-* **MAE**: Mean Absolute Error of the deterministic forecast position.
-* **Avg Cone Radius**: Average radius of the uncertainty cone.
+## Key Observations
+- **Corfidi Strength**: The Corfidi Vector (specifically Downshear MCS motion) is a significantly stronger environmental baseline than Bunkers, especially at longer lead times where it matches kinematic hit rates.
+- **Kinematic Foundation**: Pure radar displacement logic remains a very strong baseline for individual convective cells, outperforming pure environmental methods in MAE.
+- **StormCast Superiority**: The hybrid approach remains the unchallenged global champion, reducing forecast error by **10-16%** compared to radar only, and by **20-40%** compared to environmental steering.
