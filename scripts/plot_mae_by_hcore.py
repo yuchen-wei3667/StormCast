@@ -16,6 +16,7 @@ from StormCast.diagnostics import (
     compute_storm_core_height,
     compute_adaptive_steering,
     compute_bunkers_motion,
+    compute_raw_bunkers_motion,
     compute_corfidi_motion
 )
 from StormCast.blending import (
@@ -84,7 +85,7 @@ def evaluate_single_file(file_path, mode="stormcast"):
                 h_core = compute_storm_core_height(step['properties'].get('p100EchoTop30'), step['properties'].get('EchoTop50'))
                 
                 if mode == "bunkers":
-                    v_final = compute_bunkers_motion(env, h_core)
+                    v_final = compute_raw_bunkers_motion(env)
                 elif mode == "corfidi":
                     v_final = compute_corfidi_motion(env)
                 elif mode == "kinematic":

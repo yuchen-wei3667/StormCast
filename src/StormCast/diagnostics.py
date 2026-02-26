@@ -249,6 +249,50 @@ def compute_bunkers_motion(
     v_bunkers = v_mean + d * n_v
     
     return (u_bunkers, v_bunkers)
+
+def compute_raw_bunkers_motion(
+    profile: EnvironmentProfile,
+    right_mover: bool = True
+) -> Tuple[float, float]:
+    """
+    Compute Bunkers-type deviant storm motion estimate using the raw Bunkers et al. (2000) method.
+    Fixed 0-6 km mean wind, 0-6 km shear, and constant 7.5 m/s deviation.
+    """
+    # 0-6 km mean (sfc to 500mb approximation using 850, 700, 500)
+    u_vals, v_vals = [], []
+    for level in [850, 700, 500]:
+        if level in profile.winds:
+            u, v = profile.winds[level]
+            u_vals.append(u)
+            v_vals.append(v)
+            
+    if not u_vals:
+        return (0.0, 0.0)
+        
+    u_mean = sum(u_vals) / len(u_vals)
+    v_mean = sum(v_vals) / len(v_vals)
+    
+    # 0-6 km shear (850 to 500mb approximation)
+    u_base, v_base = profile.get_wind(850)
+    u_top, v_top = profile.get_wind(500)
+    shear_u = u_top - u_base
+    shear_v = v_top - v_base
+    
+    shear_mag = _vector_magnitude(shear_u, shear_v)
+    if shear_mag < 1e-10:
+        return (u_mean, v_mean)
+        
+    n_u, n_v = _rotate_vector_90(shear_u, shear_v, clockwise=right_mover)
+    n_u, n_v = _unit_vector(n_u, n_v)
+    
+    # Canonical deviation
+    d = 7.5
+    
+    u_bunkers = u_mean + d * n_u
+    v_bunkers = v_mean + d * n_v
+    
+    return (u_bunkers, v_bunkers)
+
 def compute_corfidi_motion(
     profile: EnvironmentProfile,
     right_mover: bool = True

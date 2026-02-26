@@ -16,6 +16,7 @@ from StormCast.diagnostics import (
     compute_storm_core_height,
     compute_adaptive_steering,
     compute_bunkers_motion,
+    compute_raw_bunkers_motion,
     compute_corfidi_motion
 )
 from StormCast.blending import (
@@ -90,7 +91,7 @@ def evaluate_single_file(file_path):
                 sc_state = StormState(x=kf.x, y=kf.y, u=v_sc[0], v=v_sc[1], h_core=h_core, track_history=hist_len, motion_jitter=jitter)
                 
                 # 2. Bunkers (Pure)
-                v_bnk = v_bunkers_guidance
+                v_bnk = compute_raw_bunkers_motion(env)
                 bnk_state = StormState(x=displacements[i][0], y=displacements[i][1], u=v_bnk[0], v=v_bnk[1], h_core=h_core)
                 
                 # 3. Kinematic (Pure)
