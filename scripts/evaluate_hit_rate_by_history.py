@@ -11,6 +11,7 @@ from functools import partial
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+from shapely.geometry import Polygon
 from StormCast.types import StormState, EnvironmentProfile
 from StormCast.diagnostics import (
     compute_storm_core_height,
@@ -27,7 +28,8 @@ from StormCast.kalman import StormKalmanFilter
 from StormCast.forecast import forecast_with_uncertainty
 from StormCast.config import MIN_VELOCITY_THRESHOLD, MAX_VELOCITY_THRESHOLD, MOTION_SMOOTHING_WINDOW
 
-CHI2_95 = 5.991
+CHI2_DEFAULT = 1.02
+# 2.30 is 68%, 1.02 is ~40% (SHRUNK)
 LEAD_TIMES = {900: '15 min', 1800: '30 min', 2700: '45 min', 3600: '60 min'}
 MAX_HISTORY_LEN = 50
 
@@ -49,6 +51,18 @@ def evaluate_single_file(file_path):
         freezing_level_km=props0.get('freezing_level_height'),
         mucape=props0.get('MUCAPE')
     )
+    
+    ref_lat, ref_lon = cell_data[0]['centroid']
+    
+    def get_poly_meters(bbox):
+        poly = []
+        if not bbox: return poly
+        for lat, lon in bbox:
+            y = (lat - ref_lat) * 111111.0
+            x = (lon - ref_lon) * 111111.0 * np.cos(np.radians(ref_lat))
+            poly.append((x, y))
+        return poly
+
     
     kf = StormKalmanFilter(initial_state=[0.0, 0.0, 0.0, 0.0])
     motion_history = []
@@ -85,9 +99,11 @@ def evaluate_single_file(file_path):
                 weights = adjust_weights_for_maturity(h_core, hist_len, shear, mucape=env.mucape)
                 v_final = blend_motion(v_obs, v_mean, v_bunkers, weights)
                 
+                poly_coords = get_poly_meters(step.get('bbox', []))
+                
                 state = StormState(x=kf.x, y=kf.y, u=v_final[0], v=v_final[1], 
                                   h_core=h_core, echo_top_30=step['properties'].get('p100EchoTop30', 10.0), track_history=hist_len,
-                                  motion_jitter=jitter)
+                                  motion_jitter=jitter, polygon=poly_coords)
                 
                 for target_lt in LEAD_TIMES.keys():
                     elapsed = 0
@@ -96,11 +112,18 @@ def evaluate_single_file(file_path):
                         if abs(elapsed - target_lt) <= 150:
                             f = forecast_with_uncertainty(state, lead_times=[elapsed])[0]
                             dist_err = np.sqrt((displacements[j][0] - f.x)**2 + (displacements[j][1] - f.y)**2) / 1000.0
-                            hit = 0
-                            if f.sigma_x > 0 and f.sigma_y > 0:
-                                val = ((displacements[j][0] - f.x)**2 / f.sigma_x**2) + ((displacements[j][1] - f.y)**2 / f.sigma_y**2)
-                                if val <= CHI2_95: hit = 1
-                            results.append((target_lt, hist_len, hit, dist_err, (f.sigma_x + f.sigma_y)/2000.0 * np.sqrt(CHI2_95)))
+                            
+                            hit = 0.0
+                            actual_bbox = cell_data[j].get('bbox', [])
+                            if actual_bbox and f.polygon:
+                                actual_poly = Polygon(get_poly_meters(actual_bbox))
+                                fcst_poly = Polygon(f.polygon)
+                                if actual_poly.is_valid and actual_poly.area > 0 and fcst_poly.is_valid:
+                                    # Use intersection area / true polygon area
+                                    intersection_area = actual_poly.intersection(fcst_poly).area
+                                    hit = intersection_area / actual_poly.area
+                                    
+                            results.append((target_lt, hist_len, hit, dist_err, (f.sigma_x + f.sigma_y)/2000.0 * np.sqrt(CHI2_DEFAULT)))
                             break
                         if elapsed > target_lt + 300: break
     return results
@@ -130,7 +153,7 @@ def main():
             
     print("Massive Evaluation complete.")
     print("-" * 75)
-    print(f"{'Lead':<8} | {'Hit Rate':<10} | {'MAE (km)':<10} | {'95% Radius (km)':<15}")
+    print(f"{'Lead':<8} | {'Avg Overlap':<12} | {'MAE (km)':<10} | {'Radius (km)':<15}")
     print("-" * 75)
     for lt in sorted(LEAD_TIMES.keys()):
         total_hits = sum(stats[lt][h]['hits'] for h in range(2, MAX_HISTORY_LEN + 1))
@@ -168,14 +191,14 @@ def main():
     ax2.grid(False)
 
     ax1.set_xlabel('Filter History Length (Observations)', fontsize=11, color='#374151', fontweight='bold')
-    ax1.set_ylabel('Hit Rate (%)', fontsize=11, color='#374151', fontweight='bold')
+    ax1.set_ylabel('Average Overlap (%)', fontsize=11, color='#374151', fontweight='bold')
     from matplotlib.ticker import PercentFormatter, MaxNLocator
     ax1.yaxis.set_major_formatter(PercentFormatter(1.0))
     ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax1.set_ylim(0.5, 1.05)
     ax1.spines['top'].set_visible(False)
     ax1.legend(loc='lower right', frameon=True, fontsize=10, facecolor='white', framealpha=0.9)
-    plt.title('StormCast Accuracy vs. Tracking History (Total Population)', fontsize=13, fontweight='bold', pad=20)
+    plt.title('StormCast Avg Overlap vs. Tracking History (Shrunk Polygons)', fontsize=13, fontweight='bold', pad=20)
     plt.tight_layout()
     os.makedirs('../plots', exist_ok=True)
     plt.savefig('../plots/hit_rate_vs_history.png', dpi=300, bbox_inches='tight')

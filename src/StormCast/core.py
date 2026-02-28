@@ -48,6 +48,7 @@ class ForecastResult:
     u: float
     v: float
     forecast_cones: List[Dict[str, Any]]
+    forecast_polygons: List[List[Tuple[float, float]]]
 
 
 class StormCastEngine:
@@ -73,6 +74,8 @@ class StormCastEngine:
         # Current state cache
         self.last_update_time: Optional[datetime] = None
         self.current_h_core: float = 6.0  # Default moderate depth
+        self.current_polygon: Optional[List[Tuple[float, float]]] = None
+        self.current_echo_top_30: float = 10.0
         
     def set_environment(self, profile: EnvironmentProfile) -> None:
         """Update the environmental wind profile."""
@@ -85,7 +88,8 @@ class StormCastEngine:
         dt_seconds: float, 
         echo_top_30: float = 10.0,
         echo_top_50: float = 8.0,
-        timestamp: Optional[datetime] = None
+        timestamp: Optional[datetime] = None,
+        polygon: Optional[List[Tuple[float, float]]] = None
     ) -> None:
         """
         Add a new radar observation.
@@ -96,7 +100,9 @@ class StormCastEngine:
             echo_top_30: Height of 30 dBZ echo top (km AGL)
             echo_top_50: Height of 50 dBZ echo top (km AGL)
             timestamp: Observation time
+            polygon: List of (lat, lon) coordinates defining the storm footprint
         """
+        self.current_polygon = polygon
         # Extract freezing level if environment is present
         fz_level = None
         if self.environment:
@@ -164,7 +170,7 @@ class StormCastEngine:
         except Exception:
            # Fallback if calculation fails (e.g. no shear)
            v_bunkers = v_mean
-
+ 
         # --- B. Motion Blending ---
         # 1. Smooth observations
         from .config import MOTION_SMOOTHING_WINDOW
@@ -197,7 +203,8 @@ class StormCastEngine:
             echo_top_30=getattr(self, 'current_echo_top_30', 10.0),
             track_history=track_history_len,
             motion_jitter=jitter,
-            timestamp=self.last_update_time
+            timestamp=self.last_update_time,
+            polygon=self._latlon_to_meters_poly(self.current_polygon) if self.current_polygon else None
         )
         
         # --- D. Forecast & Uncertainty ---
@@ -205,26 +212,24 @@ class StormCastEngine:
         # Legacy behavior defaults to zero initial position uncertainty for "tight" tracks.
         # To use Kalman confidence, one would use: math.sqrt(kf_cov[i][i])
         initial_sigma_x, initial_sigma_y = 0.0, 0.0
-
+ 
         forecast_track = forecast_with_uncertainty(
             storm, 
             lead_times=lead_times,
             initial_sigma_pos=(initial_sigma_x, initial_sigma_y)
         )
         
-        # 2. Generate Uncertainty Cones (Simplified)
         # Chi-Squared values for 2D at given confidence
-        # 95%: 5.991, 90%: 4.605, 68%: 2.30
-        chi2_map = {0.68: 2.30, 0.90: 4.605, 0.95: 5.991, 0.99: 9.21}
-        # Fallback to 95% if not in map, or use a basic formula if we wanted more precision
-        # For now, these fixed values are standard for evaluation.
+        # 95%: 5.991, 90%: 4.605, 68%: 2.30, 40%: 1.02
+        chi2_map = {0.40: 1.02, 0.68: 2.30, 0.90: 4.605, 0.95: 5.991}
+        chi2 = chi2_map.get(confidence, 1.02)
         import math
-        chi2 = chi2_map.get(confidence, 5.991)
         scale = math.sqrt(chi2)
-        
+
         cones = []
+        polygons = []
         for fp in forecast_track:
-            # Taking max sigma for conservative radius (usually isotropic)
+            # Expansion radius used for building the polygon
             radius = max(fp.sigma_x, fp.sigma_y) * scale
             
             # Convert center to lat/lon
@@ -232,17 +237,35 @@ class StormCastEngine:
             
             cones.append({
                 "center": (center_lat, center_lon),
-                "x": fp.x,
-                "y": fp.y,
                 "radius": radius,
+                "polygon_expansion": radius,
                 "lead_time": fp.lead_time
             })
+
+            if fp.polygon:
+                # Convert back to lat/lon
+                latlon_poly = [self._meters_to_latlon(px, py) for px, py in fp.polygon]
+                polygons.append(latlon_poly)
+            else:
+                polygons.append([self._meters_to_latlon(fp.x, fp.y)])
         
         return ForecastResult(
             u=v_final[0],
             v=v_final[1],
-            forecast_cones=cones
+            forecast_cones=cones,
+            forecast_polygons=polygons
         )
+
+    def _latlon_to_meters_poly(self, poly: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        """Convert lat/lon polygon to local meters."""
+        import math
+        meters_poly = []
+        avg_lat_rad = math.radians(self.reference_lat)
+        for lat, lon in poly:
+            dy = (lat - self.reference_lat) * 111111.0
+            dx = (lon - self.reference_lon) * (111111.0 * math.cos(avg_lat_rad))
+            meters_poly.append((dx, dy))
+        return meters_poly
 
     def _meters_to_latlon(self, x: float, y: float) -> Tuple[float, float]:
         """Convert local meters (x, y) to (lat, lon) using flat-earth approx."""
