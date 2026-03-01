@@ -49,6 +49,7 @@ class ForecastResult:
     v: float
     forecast_cones: List[Dict[str, Any]]
     forecast_polygons: List[List[Tuple[float, float]]]
+    polygon_0_30m: Optional[List[Tuple[float, float]]] = None
 
 
 class StormCastEngine:
@@ -228,6 +229,17 @@ class StormCastEngine:
 
         cones = []
         polygons = []
+        
+        # Phase 5: 0-30m Encompassing Polygon
+        # We need the 0m polygon (current footprint) and forecast polygons up to 30m
+        from shapely.geometry import Polygon as ShapelyPolygon
+        from shapely.ops import unary_union
+        
+        hull_shapes = []
+        if storm.polygon:
+            # Add 0-minute polygon (1:1 original size)
+            hull_shapes.append(ShapelyPolygon(storm.polygon))
+            
         for fp in forecast_track:
             # Expansion radius used for building the polygon
             radius = max(fp.sigma_x, fp.sigma_y) * scale
@@ -243,17 +255,75 @@ class StormCastEngine:
             })
 
             if fp.polygon:
+                # Add to hull if within 30 minutes (1800s)
+                if fp.lead_time <= 1800:
+                    hull_shapes.append(ShapelyPolygon(fp.polygon))
+                
                 # Convert back to lat/lon
                 latlon_poly = [self._meters_to_latlon(px, py) for px, py in fp.polygon]
                 polygons.append(latlon_poly)
             else:
                 polygons.append([self._meters_to_latlon(fp.x, fp.y)])
+                
+        # Calculate 0-30m Encompassing Polygon (Quadrilateral / Trapezoid)
+        polygon_0_30m = None
+        if len(hull_shapes) >= 2:
+            try:
+                # To make an encompassing quadrilateral, we form a trapezoid aligned with storm motion.
+                import math
+                mag = math.hypot(v_final[0], v_final[1])
+                
+                # If storm is stationary, fallback to minimum rotated rectangle of the hull
+                if mag < 0.1:
+                    hull = unary_union(hull_shapes).convex_hull
+                    quad = hull.minimum_rotated_rectangle
+                    if not quad.is_empty and quad.geom_type == 'Polygon':
+                        polygon_0_30m = [self._meters_to_latlon(px, py) for px, py in quad.exterior.coords]
+                else:
+                    # Forward and Right unit vectors
+                    F = (v_final[0]/mag, v_final[1]/mag)
+                    R = (v_final[1]/mag, -v_final[0]/mag)
+                    
+                    # Project T=0 polygon (hull_shapes[0])
+                    pts_0 = list(hull_shapes[0].exterior.coords)
+                    f_0 = [px*F[0] + py*F[1] for px, py in pts_0]
+                    r_0 = [px*R[0] + py*R[1] for px, py in pts_0]
+                    f_min0, r_min0, r_max0 = min(f_0), min(r_0), max(r_0)
+                    
+                    # Project T=30 polygon (hull_shapes[-1])
+                    pts_30 = list(hull_shapes[-1].exterior.coords)
+                    f_30 = [px*F[0] + py*F[1] for px, py in pts_30]
+                    r_30 = [px*R[0] + py*R[1] for px, py in pts_30]
+                    f_max30, r_min30, r_max30 = max(f_30), min(r_30), max(r_30)
+                    
+                    # 4 Corners of the Trapezoid in (F, R) space
+                    corners_fr = [
+                        (f_max30, r_min30), # Front-Left
+                        (f_max30, r_max30), # Front-Right
+                        (f_min0, r_max0),   # Rear-Right
+                        (f_min0, r_min0)    # Rear-Left
+                    ]
+                    
+                    # Convert back to (X, Y) and then Lat/Lon
+                    quad_latlon = []
+                    for cf, cr in corners_fr:
+                        cx = cf * F[0] + cr * R[0]
+                        cy = cf * F[1] + cr * R[1]
+                        quad_latlon.append(self._meters_to_latlon(cx, cy))
+                        
+                    # Close the polygon
+                    quad_latlon.append(quad_latlon[0])
+                    polygon_0_30m = quad_latlon
+            except Exception as e:
+                # Fallback if math fails
+                pass
         
         return ForecastResult(
             u=v_final[0],
             v=v_final[1],
             forecast_cones=cones,
-            forecast_polygons=polygons
+            forecast_polygons=polygons,
+            polygon_0_30m=polygon_0_30m
         )
 
     def _latlon_to_meters_poly(self, poly: List[Tuple[float, float]]) -> List[Tuple[float, float]]:

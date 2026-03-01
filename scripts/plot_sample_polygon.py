@@ -139,6 +139,15 @@ def main():
                             ax.plot(fcst_poly_km_x, fcst_poly_km_y, 'r--', linewidth=2, label='Forecast Buffer (Tuned-90%)')
                             ax.fill(fcst_poly_km_x, fcst_poly_km_y, color='red', alpha=0.1)
                             
+                            # Plot 0-30m Encompassing Polygon
+                            if hasattr(f, 'polygon_0_30m') and f.polygon_0_30m:
+                                poly_0_30_x = [pt[0]/1000 for pt in f.polygon_0_30m]
+                                poly_0_30_y = [pt[1]/1000 for pt in f.polygon_0_30m]
+                                poly_0_30_x.append(poly_0_30_x[0])
+                                poly_0_30_y.append(poly_0_30_y[0])
+                                ax.plot(poly_0_30_x, poly_0_30_y, color='purple', linewidth=2, linestyle='-.', label='0-30m Encompassing Polygon')
+                                ax.fill(poly_0_30_x, poly_0_30_y, color='purple', alpha=0.1)
+                            
                             # Calculate overlap
                             overlap = 0
                             if actual_poly.is_valid and fcst_poly.is_valid:
