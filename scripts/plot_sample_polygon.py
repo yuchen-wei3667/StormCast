@@ -136,7 +136,7 @@ def main():
                             fcst_poly_km_y = [pt[1]/1000 for pt in f.polygon]
                             fcst_poly_km_x.append(fcst_poly_km_x[0])
                             fcst_poly_km_y.append(fcst_poly_km_y[0])
-                            ax.plot(fcst_poly_km_x, fcst_poly_km_y, 'r--', linewidth=2, label='Forecast Buffer (68%)')
+                            ax.plot(fcst_poly_km_x, fcst_poly_km_y, 'r--', linewidth=2, label='Forecast Buffer (Tuned-90%)')
                             ax.fill(fcst_poly_km_x, fcst_poly_km_y, color='red', alpha=0.1)
                             
                             # Calculate overlap

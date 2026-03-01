@@ -220,9 +220,9 @@ class StormCastEngine:
         )
         
         # Chi-Squared values for 2D at given confidence
-        # 95%: 5.991, 90%: 4.605, 68%: 2.30, 40%: 1.02
-        chi2_map = {0.40: 1.02, 0.68: 2.30, 0.90: 4.605, 0.95: 5.991}
-        chi2 = chi2_map.get(confidence, 1.02)
+        # 95%: 5.991, 90%: 4.605 (Point), 68%: 2.30, 90% Overlap (Tuned): 2.12
+        chi2_map = {0.68: 2.30, 0.90: 2.12, 0.95: 5.991}
+        chi2 = chi2_map.get(confidence, 2.12)
         import math
         scale = math.sqrt(chi2)
 

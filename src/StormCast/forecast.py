@@ -132,9 +132,21 @@ def forecast_with_uncertainty(
             dy = y - state.y
             translated_poly = translate(base_poly, xoff=dx, yoff=dy)
             
-            # Buffer by radius (max sigma * sqrt(1.02) for ~40% confidence)
-            # 1.02 is the Chi-squared value for 2D 40% confidence scaling
-            radius = max(sigma_pos[0], sigma_pos[1]) * math.sqrt(1.02)
+            # Proportional Expansion: Scale buffer by cell width
+            # Small cells shouldn't balloon to 30km clusters
+            minx, miny, maxx, maxy = base_poly.bounds
+            width = max(maxx - minx, maxy - miny)
+            ref_width = 20000.0 # 20km reference
+            w_scale = min(1.0, max(0.1, width / ref_width))
+            
+            # Buffer by radius (max sigma * sqrt(2.12) for 90% overlap)
+            # 2.12 is the tuned Chi-squared value for 2D 90% average overlap
+            # Now scaled by w_scale to respect cell size
+            radius = max(sigma_pos[0], sigma_pos[1]) * math.sqrt(2.12) * w_scale
+            
+            # Add a small 500m floor for tiny cells
+            radius = max(radius, 500.0)
+            
             buffered_poly = translated_poly.buffer(radius)
             
             if not buffered_poly.is_empty:

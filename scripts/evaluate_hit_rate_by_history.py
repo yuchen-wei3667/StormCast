@@ -28,8 +28,8 @@ from StormCast.kalman import StormKalmanFilter
 from StormCast.forecast import forecast_with_uncertainty
 from StormCast.config import MIN_VELOCITY_THRESHOLD, MAX_VELOCITY_THRESHOLD, MOTION_SMOOTHING_WINDOW
 
-CHI2_DEFAULT = 1.02
-# 2.30 is 68%, 1.02 is ~40% (SHRUNK)
+CHI2_DEFAULT = 2.12
+# 2.12 is tuned for 90% average overlap across the storm population.
 LEAD_TIMES = {900: '15 min', 1800: '30 min', 2700: '45 min', 3600: '60 min'}
 MAX_HISTORY_LEN = 50
 
